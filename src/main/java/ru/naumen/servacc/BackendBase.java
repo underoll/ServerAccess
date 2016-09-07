@@ -3,6 +3,7 @@ package ru.naumen.servacc;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +57,18 @@ public abstract class BackendBase<C> implements Backend {
         this.acRegistry = acRegistry;
         this.keyLoader = keyLoader;
     }
+
+    /**
+     * Retrieve SSH2 connection described by account using through connection (if not null) as tunnel.
+     * Simple function creating exactly 1 (one) SSH2 connection.
+     * Do not use this function - it is only extension of another getSSH2Client.
+     *
+     * @param account
+     * @param through
+     * @return
+     * @throws Exception
+     */
+    protected abstract C getSSH2Client(SSHAccount account, C through) throws Exception;
 
     @Override
     public void openHTTPAccount(HTTPAccount account) throws Exception
@@ -249,5 +262,66 @@ public abstract class BackendBase<C> implements Backend {
         {
             new SSHLocalForwardActiveChannel((SSHActiveChannel)channel, acRegistry, port).save();
         }
+    }
+
+    /**
+     * Retrieve SSH2 connection described by account (follow "through chain").
+     * Complex function, creating 0...n SSH2 connection.
+     *
+     * @param account
+     * @return
+     * @throws Exception
+     */
+    protected C getSSH2Client(SSHAccount account) throws Exception
+    {
+        if (isConnected(account))
+        {
+            return getConnection(account);
+        }
+        // follow the 'through' chain
+        List<SSHAccount> throughChain = new ArrayList<>();
+        SSHAccount cur = getThrough(account);
+        while (cur != null)
+        {
+            if (throughChain.contains(cur))
+            {
+                // circular reference
+                break;
+            }
+            throughChain.add(cur);
+            if (isConnected(cur))
+            {
+                // account is found in the cache, no need to go further
+                break;
+            }
+            cur = getThrough(cur);
+        }
+        Collections.reverse(throughChain);
+        C last = null;
+        for (SSHAccount through : throughChain)
+        {
+            if (isConnected(through))
+            {
+                last = getConnection(through);
+            }
+            else
+            {
+                last = getSSH2Client(through, last);
+                saveConnection(through, last);
+            }
+        }
+        C client = getSSH2Client(account, last);
+        saveConnection(account, client);
+        return client;
+    }
+
+    protected void saveConnection(SSHAccount account, C client)
+    {
+        connections.put(account.getUniqueIdentity(), client);
+    }
+
+    protected C getConnection(SSHAccount account)
+    {
+        return connections.get(account.getUniqueIdentity());
     }
 }

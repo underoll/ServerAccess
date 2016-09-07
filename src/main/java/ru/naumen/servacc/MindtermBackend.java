@@ -24,9 +24,6 @@ import com.mindbright.util.SecureRandomAndPad;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -172,57 +169,6 @@ public class MindtermBackend extends BackendBase<SSH2SimpleClient> {
     }
 
     /**
-     * Retrieve SSH2 connection described by account (follow "through chain").
-     * Complex function, creating 0...n SSH2 connection.
-     *
-     * @param account
-     * @return
-     * @throws Exception
-     */
-    private SSH2SimpleClient getSSH2Client(SSHAccount account) throws Exception
-    {
-        if (isConnected(account))
-        {
-            return getConnection(account);
-        }
-        // follow the 'through' chain
-        List<SSHAccount> throughChain = new ArrayList<>();
-        SSHAccount cur = getThrough(account);
-        while (cur != null)
-        {
-            if (throughChain.contains(cur))
-            {
-                // circular reference
-                break;
-            }
-            throughChain.add(cur);
-            if (isConnected(cur))
-            {
-                // account is found in the cache, no need to go further
-                break;
-            }
-            cur = getThrough(cur);
-        }
-        Collections.reverse(throughChain);
-        SSH2SimpleClient last = null;
-        for (SSHAccount through : throughChain)
-        {
-            if (isConnected(through))
-            {
-                last = getConnection(through);
-            }
-            else
-            {
-                last = getSSH2Client(through, last);
-                saveConnection(through, last);
-            }
-        }
-        SSH2SimpleClient client = getSSH2Client(account, last);
-        saveConnection(account, client);
-        return client;
-    }
-
-    /**
      * Retrieve SSH2 connection described by account using through connection (if not null) as tunnel.
      * Simple function creating exactly 1 (one) SSH2 connection.
      * Do not use this function - it is only extension of another getSSH2Client.
@@ -232,7 +178,8 @@ public class MindtermBackend extends BackendBase<SSH2SimpleClient> {
      * @return
      * @throws Exception
      */
-    private SSH2SimpleClient getSSH2Client(SSHAccount account, SSH2SimpleClient through) throws Exception
+    @Override
+    protected SSH2SimpleClient getSSH2Client(SSHAccount account, SSH2SimpleClient through) throws Exception
     {
         String host = account.getHost();
         int port = account.getPort() >= 0 ? account.getPort() : SSH_DEFAULT_PORT;
@@ -279,15 +226,5 @@ public class MindtermBackend extends BackendBase<SSH2SimpleClient> {
         auth.addModule(new SSH2AuthKbdInteract(new SSH2PasswordInteractor(account.getPassword())));
         createSSHActiveChannel(account, sock.getLocalPort(), through ? port : -1);
         return new SSH2SimpleClient(transport, auth);
-    }
-
-    private void saveConnection(SSHAccount account, SSH2SimpleClient client)
-    {
-        connections.put(account.getUniqueIdentity(), client);
-    }
-
-    private SSH2SimpleClient getConnection(SSHAccount account)
-    {
-        return connections.get(account.getUniqueIdentity());
     }
 }
