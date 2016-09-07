@@ -1,7 +1,5 @@
 package ru.naumen.servacc;
 
-import com.mindbright.ssh2.SSH2SimpleClient;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,41 +8,47 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Stores list of connections.
  *
- * @author tosha
- *         Extracted @since 22.11.12
+ * @author arkaev
+ * @since  08.09.2016
  */
-public class ConnectionsManager
-{
-    private List<SSH2SimpleClient> connections;
-    private Map<String, SSH2SimpleClient> cache;
+public abstract class ConnectionsManagerBase<C> implements IConnectionsManager<C> {
+    private List<C> connections;
+    private Map<String, C> cache;
 
-    public ConnectionsManager()
+    protected abstract void closeConnections(List<C> connections);
+
+    public ConnectionsManagerBase()
     {
         cache = new ConcurrentHashMap<>();
         connections = new ArrayList<>();
     }
 
-    public void put(String key, SSH2SimpleClient client)
+    @Override
+    public void put(String key, C client)
     {
         cache.put(key, client);
     }
 
+    @Override
     public void remove(String key)
     {
         // TODO: We do not put connection into connections list, so it will not be closed at exit. Bug or feature?
         cache.remove(key);
     }
 
-    public SSH2SimpleClient get(String key)
+    @Override
+    public C get(String key)
     {
         return cache.get(key);
     }
 
+    @Override
     public boolean containsKey(String key)
     {
         return cache.containsKey(key);
     }
 
+    @Override
     public void clearCache()
     {
         // keep track of all open connections so we can close them on exit
@@ -52,15 +56,10 @@ public class ConnectionsManager
         cache.clear();
     }
 
+    @Override
     public void cleanup()
     {
         clearCache();
-        for (SSH2SimpleClient client : connections)
-        {
-            if (client.getTransport().isConnected())
-            {
-                client.getTransport().normalDisconnect("quit");
-            }
-        }
+        closeConnections(connections);
     }
 }

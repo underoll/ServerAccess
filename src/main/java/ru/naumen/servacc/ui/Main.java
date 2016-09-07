@@ -12,18 +12,16 @@ package ru.naumen.servacc.ui;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
-
 import ru.naumen.servacc.Backend;
 import ru.naumen.servacc.HTTPProxy;
 import ru.naumen.servacc.IAuthenticationParametersGetter;
-import ru.naumen.servacc.MindtermBackend;
+import ru.naumen.servacc.SSHJBackend;
 import ru.naumen.servacc.SSHKeyLoader;
 import ru.naumen.servacc.activechannel.ActiveChannelsRegistry;
 import ru.naumen.servacc.platform.OS;
@@ -55,7 +53,8 @@ public class Main implements Runnable
         Shell shell = createShell(display, configuration.getWindowProperties());
         ExecutorService executor = Executors.newCachedThreadPool(new DaemonizerThreadFactory());
         IAuthenticationParametersGetter authParamsGetter = new AuthenticationDialogParametersGetter(shell);
-        Backend backend = new MindtermBackend(system, executor, acRegistry, new SSHKeyLoader(authParamsGetter, system.getKeyStoreDirectory(), system.getTempKeyStoreDirectory()));
+//        Backend backend = new MindtermBackend(system, executor, acRegistry, new SSHKeyLoader(authParamsGetter, system.getKeyStoreDirectory(), system.getTempKeyStoreDirectory()));
+        Backend backend = new SSHJBackend(system, executor, acRegistry, new SSHKeyLoader(authParamsGetter, system.getKeyStoreDirectory(), system.getTempKeyStoreDirectory()));
         HTTPProxy httpProxy = new HTTPProxy(backend, executor, acRegistry);
         UIController controller = new UIController(shell, system.getGUIOptions(), backend, executor, httpProxy,
             configuration.filterProperties("source[0-9]*"), acRegistry);
